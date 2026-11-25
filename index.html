@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <title>E-posta doğrulama | Mutlu Liman</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100svh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: #0C121C;
+      color: #F4F8FC;
+      font-family: system-ui, sans-serif;
+    }
+
+    main {
+      width: 100%;
+      max-width: 440px;
+      padding: 40px 28px;
+      border: 1px solid #28384A;
+      border-radius: 28px;
+      background: #17202E;
+      text-align: center;
+    }
+
+    .brand {
+      margin: 0 0 32px;
+      color: #72DCCF;
+      font-weight: 700;
+      letter-spacing: 2px;
+    }
+
+    h1 {
+      margin: 0 0 18px;
+      font-size: 28px;
+      line-height: 1.3;
+    }
+
+    #message {
+      margin: 0;
+      color: #B5C4D4;
+      font-size: 17px;
+      line-height: 1.7;
+    }
+
+    main[data-status="success"] h1 { color: #72DCCF; }
+    main[data-status="error"] h1 { color: #FFA4C4; }
+  </style>
+</head>
+
+<body>
+  <main id="card" aria-live="polite" aria-busy="true">
+    <p class="brand">MUTLU LİMAN</p>
+    <h1 id="title">Doğrulama kontrol ediliyor…</h1>
+    <p id="message">Lütfen kısa bir süre bekleyin.</p>
+  </main>
+
+  <script>
+    const SUPABASE_URL =
+      'https://xqxgbgksyxmfmchjisoo.supabase.co';
+
+    const PUBLISHABLE_KEY = 'sb_publishable_c-NkgMcIkQ0nX2TLznKzRQ_WgAj_BiV';
+
+    const card = document.getElementById('card');
+    const title = document.getElementById('title');
+    const message = document.getElementById('message');
+
+    function show(status, heading, text) {
+      card.dataset.status = status;
+      card.setAttribute('aria-busy', 'false');
+      title.textContent = heading;
+      message.textContent = text;
+    }
+
+    async function checkConfirmation() {
+      const hash = new URLSearchParams(location.hash.slice(1));
+      const query = new URLSearchParams(location.search);
+
+      const read = (name) => hash.get(name) || query.get(name);
+      const hasError =
+        read('error') || read('error_code') || read('error_description');
+
+      const accessToken = hash.get('access_token');
+
+      // Bağlantıdaki oturum bilgilerini adres çubuğundan temizle.
+      // Tarayıcıya veya yerel depolamaya kaydetme.
+      history.replaceState(null, '', location.pathname);
+
+      if (hasError) {
+        show(
+          'error',
+          'Bağlantı kullanılamadı',
+          'Bağlantının süresi dolmuş veya daha önce kullanılmış olabilir. ' +
+          'Uygulamadan giriş yapmayı deneyin. E-posta henüz doğrulanmadıysa ' +
+          'yeni bir doğrulama bağlantısı isteyin.'
+        );
+        return;
+      }
+
+      if (!accessToken) {
+        show(
+          'info',
+          'E-posta doğrulama',
+          'Bu sayfayı e-postanıza gelen doğrulama bağlantısından açın. ' +
+          'Daha önce doğruladıysanız uygulamadan giriş yapabilirsiniz.'
+        );
+        return;
+      }
+
+      if (!PUBLISHABLE_KEY.startsWith('sb_publishable_')) {
+        show(
+          'error',
+          'Sayfa kurulumu tamamlanmamış',
+          'Doğrulama sonucu şu anda kontrol edilemiyor. ' +
+          'Uygulamadan giriş yapmayı deneyebilirsiniz.'
+        );
+        return;
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
+      try {
+        const response = await fetch(
+          SUPABASE_URL + '/auth/v1/user',
+          {
+            headers: {
+              apikey: PUBLISHABLE_KEY,
+              Authorization: 'Bearer ' + accessToken
+            },
+            signal: controller.signal,
+            cache: 'no-store',
+            credentials: 'omit',
+            referrerPolicy: 'no-referrer'
+          }
+        );
+
+        if (!response.ok) throw new Error('Kontrol başarısız');
+
+        const user = await response.json();
+
+        if (!user.email_confirmed_at) {
+          show(
+              'error',
+              'Doğrulama tamamlanmadı',
+              'E-posta adresinizin doğrulandığı teyit edilemedi. ' +
+              'Uygulamaya dönerek tekrar deneyin.'
+          );
+          return;
+        }
+
+        show(
+          'success',
+          'E-posta adresiniz doğrulandı.',
+          'Uygulamadan devam edebilirsiniz.'
+        );
+      } catch {
+        show(
+          'error',
+          'Sonuç kontrol edilemedi',
+          'E-posta doğrulamanız tamamlanmış olabilir. ' +
+          'Uygulamaya dönüp e-posta ve şifrenizle giriş yapmayı deneyin.'
+        );
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    checkConfirmation();
+  </script>
+</body>
+</html>
